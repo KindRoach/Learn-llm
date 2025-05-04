@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-from vit.ffnn import FFNN
-from vit.self_att import MultiHeadSelfAttention
+from .ffnn import FFNN
+from .self_att import MultiHeadSelfAttention
 
 
 class TransformerBlock(nn.Module):
