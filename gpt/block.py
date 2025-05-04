@@ -4,8 +4,8 @@ Source: https://github.com/karpathy/nanoGPT/blob/master/model.py
 
 from torch import nn
 
-from gpt.ffnn import FFNN
-from gpt.self_att import CausalSelfAttention
+from .ffnn import FFNN
+from .self_att import CausalSelfAttention
 
 
 class Block(nn.Module):
