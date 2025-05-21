@@ -4,7 +4,7 @@ from .ffnn import FFNN
 from .self_att import MultiHeadSelfAttention
 
 
-class TransformerBlock(nn.Module):
+class Block(nn.Module):
     def __init__(self, dim, num_heads, dropout=0.2):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim)

@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from .block import TransformerBlock
+from .block import Block
 from .emb import Embedding
 
 
@@ -11,7 +11,7 @@ class ViT(nn.Module):
         self.embedding = Embedding(img_size, patch_size, in_channels, embed_dim, dropout)
 
         self.blocks = nn.Sequential(*[
-            TransformerBlock(embed_dim, num_heads, dropout)
+            Block(embed_dim, num_heads, dropout)
             for _ in range(depth)
         ])
         self.norm = nn.LayerNorm(embed_dim)
