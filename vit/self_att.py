@@ -28,5 +28,5 @@ class MultiHeadSelfAttention(nn.Module):
 
         # merge multi-head output
         out = out.transpose(1, 2).contiguous().view(B, L, C)  # (B, L, C)
-        out = self.proj(out)
-        return self.proj_drop(out)
+        out = self.proj_drop(self.proj(out))
+        return out
