@@ -20,9 +20,13 @@ model = GPT(
 ).to(device)
 
 model.eval()
+model.compile()
 
 seq_length = 1024
 input_ids = torch.randint(0, vocab_size, (batch_size, seq_length), device=device)
+
+# tiger JIT compile
+logits = model(input_ids)
 
 with torch.no_grad():
     # Prefill

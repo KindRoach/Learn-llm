@@ -1,11 +1,13 @@
 """
 Source: https://github.com/karpathy/nanoGPT/blob/master/model.py
 """
+from typing import Optional
 
 import torch
 from torch import nn
 
 from .block import Block
+from .kvcache import KVCache
 
 
 class GPT(nn.Module):
@@ -26,17 +28,22 @@ class GPT(nn.Module):
         self.wpe = nn.Embedding(T, d)  # position embeddings
         self.drop = nn.Dropout(dropout)
         self.blocks = nn.ModuleList(
-            [Block(d, H, T, bias, dropout) for _ in range(layers)]
+            [Block(i, d, H, T, bias, dropout) for i in range(layers)]
         )
         self.ln_f = nn.LayerNorm(d)
         self.head = nn.Linear(d, V, bias=bias)
 
-    def forward(self, idx):
+    def forward(self, idx, kv_cache: Optional[KVCache] = None):
         # idx is a [B, T] matrix of token indices
         # targets is a [B, T] matrix of target (next) token indices
         device = idx.device
         _, T = idx.size()  # [B, T]
-        pos = torch.arange(0, T, dtype=torch.long, device=device)
+
+        if kv_cache is not None:
+            cache_len = kv_cache.cache_lens[0]  # assume same length across all layers
+            pos = torch.arange(cache_len, cache_len + T, dtype=torch.long, device=device)
+        else:
+            pos = torch.arange(0, T, dtype=torch.long, device=device)
 
         # generate token and position embeddings
         tok_emb = self.wte(idx)  # [B, T, d]
@@ -45,9 +52,9 @@ class GPT(nn.Module):
 
         # pass through all decoder-only blocks
         for block in self.blocks:
-            x = block(x)
+            x = block(x, kv_cache)
         x = self.ln_f(x)  # final layer norm
 
         # logits of predict tokens
-        logits = self.head(x)
+        logits = self.head(x[:, -1])
         return logits

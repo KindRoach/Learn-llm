@@ -3,16 +3,21 @@ Source: https://github.com/karpathy/nanoGPT/blob/master/model.py
 """
 
 import math
+from typing import Optional
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 
+from .kvcache import KVCache
+
 
 class CausalSelfAttention(nn.Module):
 
-    def __init__(self, d, H, T, bias=False, dropout=0.2, ):
+    def __init__(self, layer_id, d, H, T, bias=False, dropout=0.2, ):
         """
         Arguments:
+        layer_di: id of layer to get KVCache
         d: size of embedding dimension
         H: number of attention heads
         T: maximum length of input sequences (in tokens)
@@ -21,6 +26,8 @@ class CausalSelfAttention(nn.Module):
         """
         super().__init__()
         assert d % H == 0
+
+        self.layer_id = layer_id
 
         # key, query, value projections for all heads, but in a batch
         # output is 3X the dimension because it includes key, query and value
@@ -38,10 +45,10 @@ class CausalSelfAttention(nn.Module):
         # causal mask to ensure that attention is only applied to
         # the left in the input sequence
         self.register_buffer(
-            "mask", torch.tril(torch.ones(T, T)).view(1, 1, T, T)
+            "mask", torch.tril(torch.ones((T, T), dtype=torch.bool)).view(1, 1, T, T)
         )
 
-    def forward(self, x):
+    def forward(self, x, kv_cache: Optional[KVCache] = None):
         B, T, _ = x.size()  # batch size, sequence length, embedding dimensionality
 
         # compute query, key, and value vectors for all heads in batch
@@ -53,9 +60,16 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.H, self.d // self.H).transpose(1, 2)
         v = v.view(B, T, self.H, self.d // self.H).transpose(1, 2)
 
+        if kv_cache is not None:
+            k_cache, v_cache = kv_cache.get(self.layer_id)
+            kv_cache.update(self.layer_id, k, v)
+            k = torch.cat([k_cache, k], dim=2)
+            v = torch.cat([v_cache, v], dim=2)
+
         # compute the attention matrix, perform masking, and apply dropout
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))  # [B, H, T, T]
-        att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+        T_k = k.size(2)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.mask[:, :, :T, :T_k] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
         att = self.attn_dropout(att)
 
