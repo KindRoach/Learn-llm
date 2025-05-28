@@ -17,6 +17,7 @@ class KVCache:
     def to(self, device: torch.device):
         self.k = [key.to(device) for key in self.k]
         self.v = [value.to(device) for value in self.v]
+        return self
 
     def update(self, layer: int, new_k: torch.Tensor, new_v: torch.Tensor):
         B, H, T_new, D = new_k.size()
