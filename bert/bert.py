@@ -10,7 +10,7 @@ from .block import Block
 
 class BERT(nn.Module):
 
-    def __init__(self, d, H, T, V, C, layers, bias=False, dropout=0.2, ):
+    def __init__(self, d, H, T, V, C, layers, bias=False, dropout=0.2, flash_attn=False):
         """
         Arguments:
         d: size of embedding dimension
@@ -27,7 +27,7 @@ class BERT(nn.Module):
         self.wpe = nn.Embedding(T, d)  # position embeddings
         self.drop = nn.Dropout(dropout)
         self.blocks = nn.ModuleList(
-            [Block(d, H, bias, dropout) for _ in range(layers)]
+            [Block(d, H, bias, dropout, flash_attn=flash_attn) for _ in range(layers)]
         )
         self.ln_f = nn.LayerNorm(d)
         self.head = nn.Linear(d, C, bias=bias)

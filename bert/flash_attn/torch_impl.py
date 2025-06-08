@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 
 
-def flash_attention_no_einsum(q, k, v, q_chunk_size=32, kv_chunk_size=32):
+def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
     B, H, L, D = q.shape
     scale = 1.0 / (D ** 0.5)
     device = q.device
@@ -60,7 +60,7 @@ def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device='cuda' if torch.cuda.is_av
     k = torch.randn(B, H, L, D, device=device)
     v = torch.randn(B, H, L, D, device=device)
 
-    out_flash = flash_attention_no_einsum(q, k, v)
+    out_flash = flash_attention_torch(q, k, v)
     out_ref = reference_attention(q, k, v)
 
     max_diff = (out_flash - out_ref).abs().max().item()

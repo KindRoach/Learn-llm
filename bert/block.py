@@ -9,7 +9,7 @@ from .self_att import CausalSelfAttention
 
 
 class Block(nn.Module):
-    def __init__(self, d, H, bias=False, dropout=0.2, ):
+    def __init__(self, d, H, bias=False, dropout=0.2, flash_attn=False):
         """
         Arguments:
         d: size of embedding dimension
@@ -19,7 +19,7 @@ class Block(nn.Module):
         """
         super().__init__()
         self.ln_1 = nn.LayerNorm(d)
-        self.attn = CausalSelfAttention(d, H, bias, dropout)
+        self.attn = CausalSelfAttention(d, H, bias, dropout, flash_attn=flash_attn)
         self.ln_2 = nn.LayerNorm(d)
         self.ffnn = FFNN(d, bias, dropout)
 

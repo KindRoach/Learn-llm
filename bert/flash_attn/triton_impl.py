@@ -2,7 +2,7 @@ import torch
 import triton
 import triton.language as tl
 
-from flash_attn.flash_attn_torch_simu import reference_attention
+from .torch_impl import reference_attention
 
 
 @triton.jit
@@ -85,7 +85,7 @@ def triton_flash_attention_kernel(
     tl.store(o_block_ptr, out_chunk)
 
 
-def triton_flash_attention(q, k, v, q_chunk_size=32, kv_chunk_size=32):
+def flash_attention_triton(q, k, v, q_chunk_size=32, kv_chunk_size=32):
     B, H, L, D = q.shape
 
     output = torch.empty_like(q)
@@ -108,7 +108,7 @@ def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device='cuda' if torch.cuda.is_av
     k = torch.randn(B, H, L, D, device=device)
     v = torch.randn(B, H, L, D, device=device)
 
-    out_flash = triton_flash_attention(q, k, v)
+    out_flash = flash_attention_triton(q, k, v)
     out_ref = reference_attention(q, k, v)
 
     max_diff = (out_flash - out_ref).abs().max().item()
