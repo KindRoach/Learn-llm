@@ -53,7 +53,7 @@ class CausalSelfAttention(nn.Module):
 
         if self.flash_attn:
             y = flash_attention_triton(q, k, v)
-            y = y.view(B, T, -1)
+            y = y.transpose(1, 2).view(B, T, -1)
             return y
         else:
             # compute the attention matrix, and apply dropout

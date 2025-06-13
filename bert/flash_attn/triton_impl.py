@@ -1,8 +1,8 @@
 import torch
+import torch.nn.functional as F
+
 import triton
 import triton.language as tl
-
-from .torch_impl import reference_attention
 
 
 @triton.jit
@@ -48,9 +48,9 @@ def triton_flash_attention_kernel(
     )
 
     scale = 1.0 / (D ** 0.5)
-    q_chunk = tl.load(q_block_ptr).view(BLOCK_SIZE_Q, D)
+    q_chunk = tl.load(q_block_ptr)
 
-    max_score = tl.zeros((BLOCK_SIZE_Q,), dtype=tl.float32) - float('inf')
+    max_score = tl.full((BLOCK_SIZE_Q,), float("-inf"), dtype=tl.float32)
     lse_accum = tl.zeros((BLOCK_SIZE_Q,), dtype=tl.float32)
     out_chunk = tl.zeros((BLOCK_SIZE_Q, D), dtype=tl.float32)
 
@@ -64,7 +64,7 @@ def triton_flash_attention_kernel(
         exp_scores = tl.exp(att - max_score_new[:, None])
 
         alpha = tl.exp(max_score - max_score_new)
-        lse_accum = alpha * lse_accum + exp_scores.sum(1)
+        lse_accum = alpha * lse_accum + tl.sum(exp_scores, 1)
         out_chunk = alpha[:, None] * out_chunk + tl.dot(exp_scores, v_chunk)
 
         max_score = max_score_new
@@ -98,6 +98,18 @@ def flash_attention_triton(q, k, v, q_chunk_size=32, kv_chunk_size=32):
         BLOCK_SIZE_KV=kv_chunk_size
     )
     return output
+
+
+def reference_attention(q, k, v) -> torch.Tensor:
+    """
+    Naive scaled dot-product attention.
+    q, k, v: [B, H, L, D]
+    """
+    scale = 1.0 / (q.shape[-1] ** 0.5)
+    attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale  # [B, H, L, L]
+    attn_probs = F.softmax(attn_scores, dim=-1)
+    out = torch.matmul(attn_probs, v)  # [B, H, L, D]
+    return out
 
 
 def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device='cuda' if torch.cuda.is_available() else 'cpu'):
