@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
     B, H, L, D = q.shape
-    scale = 1.0 / (D ** 0.5)
+    scale = 1.0 / (D**0.5)
     device = q.device
 
     output = torch.zeros_like(q)
@@ -13,9 +13,9 @@ def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
         qe = min(qs + q_chunk_size, L)
         q_chunk = q[:, :, qs:qe]  # [B, H, Cq, D]
 
-        max_score = torch.full((B, H, qe - qs), float('-inf'), device=device)
-        lse_accum = torch.zeros((B, H, qe - qs), device=device)
-        out_chunk = torch.zeros((B, H, qe - qs, D), device=device)
+        max_score = torch.full((B, H, qe - qs), float("-inf"), device=device)  # [B, H, Cq]
+        lse_accum = torch.zeros((B, H, qe - qs), device=device)  # [B, H, Cq]
+        out_chunk = torch.zeros((B, H, qe - qs, D), device=device)  # [B, H, Cq, D]
 
         for ks in range(0, L, kv_chunk_size):
             ke = min(ks + kv_chunk_size, L)
@@ -24,13 +24,13 @@ def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
 
             attn_scores = torch.matmul(q_chunk, k_chunk.transpose(-1, -2)) * scale  # [B, H, Cq, Ck]
 
-            block_max = attn_scores.max(dim=-1).values
-            max_score_new = torch.maximum(max_score, block_max)
-            exp_scores = torch.exp(attn_scores - max_score_new.unsqueeze(-1))
+            block_max = attn_scores.max(dim=-1).values  # [B, H, Cq]
+            max_score_new = torch.maximum(max_score, block_max)  # [B, H, Cq]
+            exp_scores = torch.exp(attn_scores - max_score_new.unsqueeze(-1))  # [B, H, Cq, Ck]
 
-            alpha = torch.exp(max_score - max_score_new)
-            lse_accum = alpha * lse_accum + exp_scores.sum(dim=-1)
-            out_chunk = alpha.unsqueeze(-1) * out_chunk + torch.matmul(exp_scores, v_chunk)
+            alpha = torch.exp(max_score - max_score_new)  # [B, H, Cq]
+            lse_accum = alpha * lse_accum + exp_scores.sum(dim=-1)  # [B, H, Cq]
+            out_chunk = alpha.unsqueeze(-1) * out_chunk + torch.matmul(exp_scores, v_chunk)  # [B, H, Cq, D]
 
             max_score = max_score_new
 
@@ -52,7 +52,7 @@ def reference_attention(q, k, v) -> torch.Tensor:
     return out
 
 
-def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device='cuda' if torch.cuda.is_available() else 'cpu'):
+def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device="cuda" if torch.cuda.is_available() else "cpu"):
     print(f"Testing FlashAttention on device: {device}")
 
     torch.manual_seed(42)
@@ -71,5 +71,5 @@ def run_test(B=2, L=128, H=4, D=64, atol=1e-4, device='cuda' if torch.cuda.is_av
         print("✅ Test PASSED: output is close to reference.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_test()
