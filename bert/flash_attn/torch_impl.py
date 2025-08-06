@@ -14,7 +14,7 @@ def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
         q_chunk = q[:, :, qs:qe]  # [B, H, Cq, D]
 
         max_score = torch.full((B, H, qe - qs), float("-inf"), device=device)  # [B, H, Cq]
-        lse_accum = torch.zeros((B, H, qe - qs), device=device)  # [B, H, Cq]
+        exp_sum = torch.zeros((B, H, qe - qs), device=device)  # [B, H, Cq]
         out_chunk = torch.zeros((B, H, qe - qs, D), device=device)  # [B, H, Cq, D]
 
         for ks in range(0, L, kv_chunk_size):
@@ -28,13 +28,13 @@ def flash_attention_torch(q, k, v, q_chunk_size=32, kv_chunk_size=32):
             max_score_new = torch.maximum(max_score, block_max)  # [B, H, Cq]
             exp_scores = torch.exp(attn_scores - max_score_new.unsqueeze(-1))  # [B, H, Cq, Ck]
 
-            alpha = torch.exp(max_score - max_score_new)  # [B, H, Cq]
-            lse_accum = alpha * lse_accum + exp_scores.sum(dim=-1)  # [B, H, Cq]
-            out_chunk = alpha.unsqueeze(-1) * out_chunk + torch.matmul(exp_scores, v_chunk)  # [B, H, Cq, D]
+            exp_max_diff = torch.exp(max_score - max_score_new)  # [B, H, Cq]
+            exp_sum = exp_max_diff * exp_sum + exp_scores.sum(dim=-1)  # [B, H, Cq]
+            out_chunk = exp_max_diff.unsqueeze(-1) * out_chunk + torch.matmul(exp_scores, v_chunk)  # [B, H, Cq, D]
 
             max_score = max_score_new
 
-        out_chunk = out_chunk / lse_accum.unsqueeze(-1)
+        out_chunk = out_chunk / exp_sum.unsqueeze(-1)
         output[:, :, qs:qe] = out_chunk
 
     return output
