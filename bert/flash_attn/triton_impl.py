@@ -51,10 +51,10 @@ def triton_flash_attention_kernel(
     q_chunk = tl.load(q_block_ptr)
 
     max_score = tl.full((BLOCK_SIZE_Q,), float("-inf"), dtype=tl.float32)
-    lse_accum = tl.zeros((BLOCK_SIZE_Q,), dtype=tl.float32)
+    exp_sum = tl.zeros((BLOCK_SIZE_Q,), dtype=tl.float32)
     out_chunk = tl.zeros((BLOCK_SIZE_Q, D), dtype=tl.float32)
 
-    for _ in range(0, L, BLOCK_SIZE_Q):
+    for _ in range(0, L, BLOCK_SIZE_KV):
         k_chunk = tl.load(k_block_ptr)
         v_chunk = tl.load(v_block_ptr)
         att = tl.dot(q_chunk, k_chunk.T) * scale
@@ -63,15 +63,15 @@ def triton_flash_attention_kernel(
         max_score_new = tl.maximum(max_score, chunk_max)
         exp_scores = tl.exp(att - max_score_new[:, None])
 
-        alpha = tl.exp(max_score - max_score_new)
-        lse_accum = alpha * lse_accum + tl.sum(exp_scores, 1)
-        out_chunk = alpha[:, None] * out_chunk + tl.dot(exp_scores, v_chunk)
+        exp_max_diff = tl.exp(max_score - max_score_new)
+        exp_sum = exp_max_diff * exp_sum + tl.sum(exp_scores, 1)
+        out_chunk = exp_max_diff[:, None] * out_chunk + tl.dot(exp_scores, v_chunk)
 
         max_score = max_score_new
         k_block_ptr = k_block_ptr.advance((BLOCK_SIZE_KV, 0))
         v_block_ptr = v_block_ptr.advance((BLOCK_SIZE_KV, 0))
 
-    out_chunk = out_chunk / lse_accum[:, None]
+    out_chunk = out_chunk / exp_sum[:, None]
 
     o_block_ptr = tl.make_block_ptr(
         O_ptr + q_offset,

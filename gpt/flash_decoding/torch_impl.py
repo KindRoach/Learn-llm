@@ -119,7 +119,7 @@ def reference_decode(q, k, v) -> torch.Tensor:
     scale = 1.0 / (q.shape[-1] ** 0.5)
     attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale  # [B, H, L, L]
     attn_probs = F.softmax(attn_scores, dim=-1)
-    out = torch.matmul(attn_probs, v)  # [B, H, 1, D]
+    out = torch.matmul(attn_probs, v)  # [B, H, T, D]
     return out
 
 
@@ -131,7 +131,11 @@ def run_test(B=2, T=16, L=1024, H=4, D=64, atol=1e-4, device="cuda" if torch.cud
     k = torch.randn(B, H, L, D, device=device)
     v = torch.randn(B, H, L, D, device=device)
 
-    out_flash = flash_decode_torch(q, k, v)
+    if T == 1:
+        out_flash = flash_decode_torch_q1(q, k, v)
+    else:
+        out_flash = flash_decode_torch(q, k, v)
+
     out_ref = reference_decode(q, k, v)
 
     max_diff = (out_flash - out_ref).abs().max().item()
